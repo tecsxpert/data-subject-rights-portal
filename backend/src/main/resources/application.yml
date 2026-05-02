@@ -21,12 +21,25 @@ spring:
     host: localhost
     port: 6379
 
+  mail:
+    host: smtp.gmail.com
+    port: 587
+    username: svinutaareddy@gmail.com
+    password: bmpaxhzqqinrnqsc
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+        connectiontimeout: 5000
+        timeout: 5000
+        writetimeout: 5000
+
 jwt:
   secret: mysecretkey
   expiration: 3600000
 
-mail:
-  host: smtp.gmail.com
-  port: 587
-  username: test@gmail.com
-  password: testpassword
+logging:
+  level:
+    org.springframework.mail: DEBUG

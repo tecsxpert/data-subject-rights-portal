@@ -14,10 +14,19 @@ public class RequestService {
     @Autowired
     private RequestRepository repository;
 
-    // ✅ CREATE REQUEST
+    @Autowired
+    private EmailService emailService; // ✅ ADD THIS
+
+    // ✅ CREATE REQUEST + SEND EMAIL
     public Request createRequest(Request request) {
         request.setStatus("PENDING"); // default status
-        return repository.save(request);
+
+        Request savedRequest = repository.save(request);
+
+        // 🔥 SEND EMAIL AFTER SAVING
+        emailService.sendRequestMail(savedRequest.getEmail());
+
+        return savedRequest;
     }
 
     // ✅ GET ALL WITH PAGINATION
