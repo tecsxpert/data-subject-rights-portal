@@ -4,3 +4,6 @@ flask-limiter
 requests
 python-dotenv
 redis
+groq
+sentence-transformers
+markupsafe

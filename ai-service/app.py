@@ -8,6 +8,14 @@ from dotenv import load_dotenv
 import time
 import hashlib
 import redis
+from sentence_transformers import SentenceTransformer
+import re
+from markupsafe import escape
+
+# Pre-loading the model at startup for faster response times
+print("Pre-loading sentence-transformers model...")
+embedding_model = SentenceTransformer('all-MiniLM-L6-v2') 
+print("Model loaded successfully.")
 
 load_dotenv()
 
@@ -21,6 +29,12 @@ CORS(app) # Necessary for the Java/React layers to talk to Flask
 
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 MODEL = "llama-3.3-70b-versatile"
+
+def sanitize_input(text):
+    # Escape HTML characters to prevent XSS
+    text = escape(text)
+    # Optional: Remove potentially dangerous characters if needed for your model
+    return text
 
 def get_ai_description(user_input):
     # 1. Loading Prompt Template
@@ -106,6 +120,9 @@ def describe_request():
     start = time.time()
     data = request.get_json()
 
+    if not request.is_json:
+        return jsonify({"error": "Content-Type must be application/json"}), 415
+
     if len(data['text']) > 5000:
         return jsonify({"error": "Request body too large"}), 413
 
@@ -135,6 +152,8 @@ def describe_request():
         
     except Exception as e:
         response_times.append(time.time() - start)
+        # Log the real error internally
+        app.logger.error(f"Internal Error: {str(e)}")
         return jsonify({
             "action_type": "Manual Review Required",
             "description": "The AI service is currently unavailable. Please verify this request manually.",
@@ -147,6 +166,9 @@ def describe_request():
 def recommend_actions():
     start = time.time()
     data = request.get_json()
+
+    if not request.is_json:
+        return jsonify({"error": "Content-Type must be application/json"}), 415
     
     if len(data['text']) > 5000:
         return jsonify({"error": "Request body too large"}), 413
@@ -174,6 +196,8 @@ def recommend_actions():
         
     except Exception as e:
         response_times.append(time.time() - start)
+        # Log the real error internally for your own debugging
+        app.logger.error(f"Internal Error: {str(e)}")
         # Standard fallback if AI fails - Wrapped in {} inside the []
         return jsonify([
             {
@@ -192,6 +216,9 @@ def recommend_actions():
 def generate_report():
     start = time.time()
     data = request.get_json()
+
+    if not request.is_json:
+        return jsonify({"error": "Content-Type must be application/json"}), 415
     
     if len(data['text']) > 5000:
         return jsonify({"error": "Request body too large"}), 413
@@ -216,6 +243,8 @@ def generate_report():
     
     except Exception as e:
         response_times.append(time.time() - start)
+        # Log the real error internally for your own debugging
+        app.logger.error(f"Internal Error: {str(e)}")
         return jsonify({
             "action_type": "Manual Review Required",
             "description": "The AI service is currently unavailable. Please verify this request manually.",
