@@ -105,7 +105,10 @@ def get_ai_report(user_input):
 def describe_request():
     start = time.time()
     data = request.get_json()
-    
+
+    if len(data['text']) > 5000:
+        return jsonify({"error": "Request body too large"}), 413
+
     # 1. Validate Input
     if not data or 'text' not in data:
         response_times.append(time.time() - start)
@@ -144,6 +147,9 @@ def recommend_actions():
     start = time.time()
     data = request.get_json()
     
+    if len(data['text']) > 5000:
+        return jsonify({"error": "Request body too large"}), 413
+    
     if not data or 'text' not in data:
         response_times.append(time.time() - start)
         return jsonify({"error": "Missing 'text' field"}), 400
@@ -179,6 +185,9 @@ def generate_report():
     start = time.time()
     data = request.get_json()
     
+    if len(data['text']) > 5000:
+        return jsonify({"error": "Request body too large"}), 413
+
     if not data or 'text' not in data:
         response_times.append(time.time() - start)
         return jsonify({"error": "Missing 'text' field"}), 400
@@ -213,6 +222,15 @@ def health():
         "request_count": len(response_times),
         "timestamp": datetime.utcnow().isoformat() + "Z"
     }), 200
+
+@app.after_request
+def add_security_headers(response):
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    response.headers['X-Frame-Options'] = 'SAMEORIGIN'
+    response.headers['X-XSS-Protection'] = '1; mode=block'
+    response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
+    response.headers['Content-Security-Policy'] = "default-src 'self'"
+    return response
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
