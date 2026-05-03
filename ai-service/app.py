@@ -135,12 +135,13 @@ def describe_request():
         
     except Exception as e:
         response_times.append(time.time() - start)
-        # Day 9 requirement: return fallback if AI fails
         return jsonify({
-            "error": "AI service unavailable",
-            "is_fallback": True,
+            "action_type": "Manual Review Required",
+            "description": "The AI service is currently unavailable. Please verify this request manually.",
+            "priority": "High",
+            "is_fallback": True, # Required for Day 9
             "generated_at": datetime.utcnow().isoformat() + "Z"
-        }), 500
+        }), 200
     
 @app.route('/recommend', methods=['POST'])
 def recommend_actions():
@@ -173,8 +174,15 @@ def recommend_actions():
         
     except Exception as e:
         response_times.append(time.time() - start)
-        # Standard fallback if AI fails
+        # Standard fallback if AI fails - Wrapped in {} inside the []
         return jsonify([
+            {
+                "action_type": "Manual Review Required", 
+                "description": "The AI service is currently unavailable. Please verify this request manually.", 
+                "priority": "High",
+                "is_fallback": True,
+                "generated_at": datetime.utcnow().isoformat() + "Z"
+            },
             {"action_type": "Identity Verification", "description": "Verify the identity of the requester manually.", "priority": "High"},
             {"action_type": "Legal Review", "description": "Consult the legal team regarding this request.", "priority": "Medium"},
             {"action_type": "Internal Log", "description": "Document this request in the manual audit log.", "priority": "Low"}
@@ -205,9 +213,16 @@ def generate_report():
             
         response_times.append(time.time() - start)
         return jsonify(report), 200
+    
     except Exception as e:
         response_times.append(time.time() - start)
-        return jsonify({"error": "Failed to generate report"}), 500
+        return jsonify({
+            "action_type": "Manual Review Required",
+            "description": "The AI service is currently unavailable. Please verify this request manually.",
+            "priority": "High",
+            "is_fallback": True, # Required for Day 9
+            "generated_at": datetime.utcnow().isoformat() + "Z"
+        }), 200
     
 @app.route('/health', methods=['GET'])
 def health():
