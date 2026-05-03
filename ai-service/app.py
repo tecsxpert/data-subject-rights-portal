@@ -71,6 +71,27 @@ def get_ai_recommendations(user_input):
                 return content[key]
     return content
 
+def get_ai_report(user_input):
+    with open("prompts/report_template.txt", "r") as f:
+        template = f.read()
+    
+    full_prompt = template.replace("{user_input}", user_input)
+
+    headers = {
+        "Authorization": f"Bearer {GROQ_API_KEY}",
+        "Content-Type": "application/json"
+    }
+    
+    data = {
+        "model": MODEL,
+        "messages": [{"role": "user", "content": full_prompt}],
+        "temperature": 0.4, # Balanced for structure and detail
+        "response_format": {"type": "json_object"}
+    }
+
+    response = requests.post("https://api.groq.com/openai/v1/chat/completions", headers=headers, json=data)
+    response.raise_for_status()
+    return json.loads(response.json()['choices'][0]['message']['content'])
 
 @app.route('/describe', methods=['POST'])
 def describe_request():
@@ -115,6 +136,18 @@ def recommend_actions():
             {"action_type": "Internal Log", "description": "Document this request in the manual audit log.", "priority": "Low"}
         ]), 200 # Return hardcoded fallback as per Day 9 standards early
 
+@app.route('/generate-report', methods=['POST'])
+def generate_report():
+    data = request.get_json()
+    if not data or 'text' not in data:
+        return jsonify({"error": "Missing 'text' field"}), 400
+    
+    try:
+        report = get_ai_report(data['text'])
+        return jsonify(report), 200
+    except Exception as e:
+        return jsonify({"error": "Failed to generate report"}), 500
+    
 @app.route('/health', methods=['GET'])
 def health():
     return {"status": "up", "message": "AI service is running"}, 200
