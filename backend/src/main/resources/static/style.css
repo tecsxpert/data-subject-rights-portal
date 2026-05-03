@@ -1,0 +1,19 @@
+body {
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  min-height: 100vh;
+  color: #333;
+}
+
+.card {
+  border-radius: 15px;
+}
+
+.btn {
+  border-radius: 8px;
+}
+
+.container-box {
+  max-width: 500px;
+  margin: auto;
+  margin-top: 80px;
+}

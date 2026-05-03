@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Admin Dashboard</title>
+    <style>
+        body {
+            font-family: Arial;
+            padding: 20px;
+            background: #f4f4f4;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: white;
+        }
+        th, td {
+            padding: 10px;
+            border: 1px solid #ddd;
+            text-align: center;
+        }
+        button {
+            padding: 5px 10px;
+            margin: 2px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+
+<body>
+
+<h2>Admin Dashboard</h2>
+
+<table>
+    <thead>
+        <tr>
+            <th>ID</th>
+            <th>Email</th>
+            <th>Type</th>
+            <th>Description</th>
+            <th>Status</th>
+            <th>Actions</th>
+        </tr>
+    </thead>
+    <tbody id="tableBody"></tbody>
+</table>
+
+<script>
+function loadRequests() {
+    fetch("http://localhost:8080/api/requests/all")
+    .then(res => res.json())
+    .then(data => {
+        let table = "";
+        data.forEach(req => {
+            table += `
+                <tr>
+                    <td>${req.id}</td>
+                    <td>${req.email}</td>
+                    <td>${req.type}</td>
+                    <td>${req.description}</td>
+                    <td>${req.status}</td>
+                    <td>
+                        <button onclick="updateStatus(${req.id}, 'APPROVED')">Approve</button>
+                        <button onclick="updateStatus(${req.id}, 'REJECTED')">Reject</button>
+                    </td>
+                </tr>
+            `;
+        });
+        document.getElementById("tableBody").innerHTML = table;
+    });
+}
+
+function updateStatus(id, status) {
+    fetch(`http://localhost:8080/api/requests/${id}/status?status=${status}`, {
+        method: "PUT"
+    }).then(() => {
+        alert("Status Updated");
+        loadRequests();
+    });
+}
+
+loadRequests();
+</script>
+
+</body>
+</html>
