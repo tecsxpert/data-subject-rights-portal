@@ -7,7 +7,6 @@ import org.springframework.scheduling.annotation.EnableScheduling; // ✅ ADD TH
 @EnableScheduling  // ✅ ADD THIS
 @SpringBootApplication
 public class ToolApplication {
-
     public static void main(String[] args) {
         SpringApplication.run(ToolApplication.class, args);
     }

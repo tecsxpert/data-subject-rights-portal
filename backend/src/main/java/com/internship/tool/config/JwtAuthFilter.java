@@ -25,24 +25,10 @@ public class JwtAuthFilter extends OncePerRequestFilter {
 
     @Override
     protected void doFilterInternal(HttpServletRequest request,
-                                    HttpServletResponse response,
-                                    FilterChain filterChain)
+                                   HttpServletResponse response,
+                                   FilterChain filterChain)
             throws ServletException, IOException {
 
-        String path = request.getRequestURI();
-
-        // ✅ BYPASS JWT for frontend + public APIs
-        if (path.startsWith("/api/auth") ||
-            path.endsWith(".html") ||
-            path.endsWith(".js") ||
-            path.endsWith(".css") ||
-            path.equals("/") ) {
-
-            filterChain.doFilter(request, response);
-            return;
-        }
-
-        // 🔐 JWT Logic for protected APIs
         String header = request.getHeader("Authorization");
 
         if (header != null && header.startsWith("Bearer ")) {

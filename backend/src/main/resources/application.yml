@@ -15,26 +15,24 @@ spring:
     properties:
       hibernate:
         dialect: org.hibernate.dialect.MySQLDialect
-        format_sql: true
 
-  redis:
-    host: localhost
-    port: 6379
+  # ❌ TEMP: disable redis (it can crash app if not running)
+  # redis:
+  #   host: localhost
+  #   port: 6379
 
-  mail:
-    host: smtp.gmail.com
-    port: 587
-    username: svinutaareddy@gmail.com
-    password: bmpaxhzqqinrnqsc
-    properties:
-      mail:
-        smtp:
-          auth: true
-          starttls:
-            enable: true
-        connectiontimeout: 5000
-        timeout: 5000
-        writetimeout: 5000
+  # ❌ TEMP: disable mail (VERY IMPORTANT - common crash reason)
+  # mail:
+  #   host: smtp.gmail.com
+  #   port: 587
+  #   username: svinutaareddy@gmail.com
+  #   password: bmpaxhzqqinrnqsc
+  #   properties:
+  #     mail:
+  #       smtp:
+  #         auth: true
+  #         starttls:
+  #           enable: true
 
 jwt:
   secret: mysecretkey
@@ -42,4 +40,4 @@ jwt:
 
 logging:
   level:
-    org.springframework.mail: DEBUG
+    org.springframework: INFO

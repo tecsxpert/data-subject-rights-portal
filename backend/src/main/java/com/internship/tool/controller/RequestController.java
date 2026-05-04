@@ -1,33 +1,43 @@
 package com.internship.tool.controller;
 
 import com.internship.tool.entity.Request;
-import com.internship.tool.service.RequestService;
+import com.internship.tool.repository.RequestRepository;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
-@CrossOrigin
 @RestController
 @RequestMapping("/api/requests")
+@CrossOrigin("*")
 public class RequestController {
 
     @Autowired
-    private RequestService requestService;
+    private RequestRepository requestRepository;
 
-    @GetMapping("/all")
+    // ✅ GET ALL REQUESTS
+    @GetMapping
     public List<Request> getAllRequests() {
-        return requestService.getAllRequests();
+        return requestRepository.findAll();
     }
 
-    @PostMapping("/create")
+    // ✅ CREATE REQUEST
+    @PostMapping
     public Request createRequest(@RequestBody Request request) {
-        return requestService.createRequest(request);
+        request.setStatus("PENDING");
+        return requestRepository.save(request);
     }
 
-    @PutMapping("/{id}/status")
-    public Request updateStatus(@PathVariable Long id,
-                                @RequestParam String status) {
-        return requestService.updateStatus(id, status);
+    // ✅ UPDATE STATUS (APPROVE / REJECT)
+    @PutMapping("/{id}")
+    public Request updateStatus(@PathVariable Long id, @RequestParam String status) {
+
+        Request req = requestRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Request not found"));
+
+        req.setStatus(status);
+
+        return requestRepository.save(req);
     }
 }
