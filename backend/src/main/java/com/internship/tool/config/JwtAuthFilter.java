@@ -1,5 +1,7 @@
 package com.internship.tool.config;
 
+import com.internship.tool.security.JwtUtil;  // ✅ ADD THIS
+
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
