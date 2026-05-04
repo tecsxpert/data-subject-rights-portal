@@ -187,6 +187,3 @@ This project demonstrates backend development using Spring Boot and frontend int
 
 ---
 
-# 🧑‍💻 Author
-
-**Vinutaa Reddy**
