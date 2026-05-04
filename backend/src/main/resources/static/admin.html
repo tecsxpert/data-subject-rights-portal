@@ -53,6 +53,19 @@
             box-shadow: 0 2px 10px rgba(0,0,0,0.1);
         }
 
+        /* Controls */
+        .controls {
+            margin-bottom: 15px;
+            display: flex;
+            gap: 10px;
+        }
+
+        input, select {
+            padding: 8px;
+            border-radius: 5px;
+            border: 1px solid #ccc;
+        }
+
         /* Table */
         table {
             width: 100%;
@@ -131,13 +144,27 @@
     <a href="#">Logout</a>
 </div>
 
-<!-- Main Content -->
+<!-- Main -->
 <div class="main">
     <h1>Admin Dashboard</h1>
 
     <div class="card">
+
         <h3>User Requests</h3>
 
+        <!-- Search + Filter -->
+        <div class="controls">
+            <input type="text" id="searchInput" placeholder="Search by email or type...">
+            
+            <select id="filterStatus">
+                <option value="ALL">All</option>
+                <option value="APPROVED">Approved</option>
+                <option value="PENDING">Pending</option>
+                <option value="REJECTED">Rejected</option>
+            </select>
+        </div>
+
+        <!-- Table -->
         <table id="requestTable">
             <thead>
                 <tr>
@@ -151,10 +178,13 @@
             </thead>
             <tbody></tbody>
         </table>
+
     </div>
 </div>
 
 <script>
+
+let allRequests = [];
 
 function getStatusClass(status) {
     if (status === "APPROVED") return "status approved";
@@ -167,39 +197,66 @@ function loadRequests() {
     fetch("http://localhost:8080/api/requests")
     .then(res => res.json())
     .then(data => {
-
-        const table = document.querySelector("#requestTable tbody");
-        table.innerHTML = "";
-
-        data.forEach(req => {
-
-            const row = `
-                <tr>
-                    <td>${req.id}</td>
-                    <td>${req.email}</td>
-                    <td>${req.type}</td>
-                    <td>${req.description}</td>
-                    <td>
-                        <span class="${getStatusClass(req.status)}">
-                            ${req.status}
-                        </span>
-                    </td>
-                    <td>
-                        <button class="btn approve" onclick="updateStatus(${req.id}, 'APPROVED')">Approve</button>
-                        <button class="btn reject" onclick="updateStatus(${req.id}, 'REJECTED')">Reject</button>
-                    </td>
-                </tr>
-            `;
-
-            table.innerHTML += row;
-        });
-
+        allRequests = data;
+        displayRequests(data);
     })
     .catch(err => {
         console.error(err);
         alert("Error loading requests");
     });
 }
+
+function displayRequests(data) {
+
+    const table = document.querySelector("#requestTable tbody");
+    table.innerHTML = "";
+
+    data.forEach(req => {
+
+        const row = `
+            <tr>
+                <td>${req.id}</td>
+                <td>${req.email}</td>
+                <td>${req.type}</td>
+                <td>${req.description}</td>
+                <td>
+                    <span class="${getStatusClass(req.status)}">
+                        ${req.status}
+                    </span>
+                </td>
+                <td>
+                    <button class="btn approve" onclick="updateStatus(${req.id}, 'APPROVED')">Approve</button>
+                    <button class="btn reject" onclick="updateStatus(${req.id}, 'REJECTED')">Reject</button>
+                </td>
+            </tr>
+        `;
+
+        table.innerHTML += row;
+    });
+}
+
+function applyFilters() {
+
+    const search = document.getElementById("searchInput").value.toLowerCase();
+    const status = document.getElementById("filterStatus").value;
+
+    let filtered = allRequests.filter(req => {
+
+        const matchesSearch =
+            req.email.toLowerCase().includes(search) ||
+            req.type.toLowerCase().includes(search);
+
+        const matchesStatus =
+            status === "ALL" || req.status === status;
+
+        return matchesSearch && matchesStatus;
+    });
+
+    displayRequests(filtered);
+}
+
+document.getElementById("searchInput").addEventListener("input", applyFilters);
+document.getElementById("filterStatus").addEventListener("change", applyFilters);
 
 function updateStatus(id, status) {
 
