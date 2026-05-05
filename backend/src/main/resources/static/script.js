@@ -10,21 +10,30 @@ function login() {
     headers: {
       "Content-Type": "application/json"
     },
-    body: JSON.stringify({ username, password })
+    body: JSON.stringify({
+      email: username,
+      password: password
+    })
   })
   .then(res => res.json())
   .then(data => {
-    if (data.token) {
+
+      // 🔥 SAVE EMAIL HERE
+      localStorage.setItem("email", username);
+
+      // 🔥 OPTIONAL: SAVE TOKEN IF YOU HAVE
       localStorage.setItem("token", data.token);
-      alert("Login successful");
-      window.location.href = "dashboard.html";
-    } else {
-      alert("Invalid username or password");
-    }
+
+      // 🔥 REDIRECT BASED ON ROLE
+      if (username === "admin@gmail.com") {
+          window.location.href = "admin.html";
+      } else {
+          window.location.href = "dashboard.html";
+      }
   })
   .catch(err => {
-    console.error(err);
-    alert("Login error");
+      alert("Login failed");
+      console.error(err);
   });
 }
 

@@ -17,9 +17,9 @@ public class RequestController {
     private RequestRepository requestRepository;
 
     // ✅ GET ALL REQUESTS
-    @GetMapping
-    public List<Request> getAllRequests() {
-        return requestRepository.findAll();
+    @GetMapping("/user/{email}")
+    public List<Request> getUserRequests(@PathVariable String email) {
+        return requestRepository.findByEmail(email);
     }
 
     // ✅ CREATE REQUEST

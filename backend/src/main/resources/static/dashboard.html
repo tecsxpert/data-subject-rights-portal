@@ -5,22 +5,41 @@
 
     <style>
         body {
-            font-family: Arial;
-            background: #2c2c54;
-            display: flex;
-            justify-content: center;
-            align-items: center;
+            margin: 0;
+            font-family: 'Segoe UI', sans-serif;
+            background-color: #f4f6f9;
+        }
+
+        .sidebar {
+            width: 220px;
             height: 100vh;
+            background: #1e293b;
+            color: white;
+            position: fixed;
+            padding: 20px;
+        }
+
+        .sidebar a {
+            display: block;
+            color: #cbd5e1;
+            margin: 10px 0;
+            text-decoration: none;
+        }
+
+        .sidebar a:hover {
             color: white;
         }
 
-        .box {
+        .main {
+            margin-left: 240px;
+            padding: 20px;
+        }
+
+        .card {
             background: white;
-            padding: 30px;
+            padding: 20px;
             border-radius: 10px;
-            width: 350px;
-            color: black;
-            text-align: center;
+            margin-bottom: 20px;
         }
 
         input, textarea {
@@ -30,37 +49,103 @@
         }
 
         button {
-            width: 100%;
             padding: 10px;
-            background: green;
+            background: #22c55e;
             color: white;
             border: none;
+            border-radius: 5px;
             cursor: pointer;
         }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th {
+            background: #1e293b;
+            color: white;
+            padding: 10px;
+        }
+
+        td {
+            padding: 10px;
+            border-bottom: 1px solid #ddd;
+            text-align: center;
+        }
+
+        .status {
+            padding: 5px 10px;
+            border-radius: 20px;
+            color: white;
+        }
+
+        .pending { background: #f59e0b; }
+        .approved { background: #22c55e; }
+        .rejected { background: #ef4444; }
     </style>
 </head>
 
 <body>
 
-<div class="box">
-    <h2>Submit Request</h2>
+<div class="sidebar">
+    <h2>DSR Portal</h2>
+    <a href="dashboard.html">Dashboard</a>
+    <a href="#requests">My Requests</a>
+    <a href="#" onclick="logout()">Logout</a>
+</div>
 
-    <input type="email" id="email" placeholder="Email">
-    <input type="text" id="type" placeholder="Request Type">
-    <textarea id="description" placeholder="Description"></textarea>
+<div class="main">
 
-    <button onclick="submitRequest()">Submit</button>
+    <h1>User Dashboard</h1>
+
+    <!-- Submit -->
+    <div class="card">
+        <h3>Submit Request</h3>
+
+        <input type="email" id="email" placeholder="Email" readonly>
+        <input type="text" id="type" placeholder="Request Type">
+        <textarea id="description" placeholder="Description"></textarea>
+
+        <button onclick="submitRequest()">Submit</button>
+    </div>
+
+    <!-- Requests -->
+    <div class="card" id="requests">
+        <h3>My Requests</h3>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Email</th>
+                    <th>Type</th>
+                    <th>Description</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody id="requestTable"></tbody>
+        </table>
+    </div>
+
 </div>
 
 <script>
 
+function getStatusClass(status) {
+    if (status === "APPROVED") return "status approved";
+    if (status === "REJECTED") return "status rejected";
+    return "status pending";
+}
+
+// ✅ Submit Request (FIXED)
 function submitRequest() {
 
-    const email = document.getElementById("email").value.trim();
+    const email = localStorage.getItem("email");
     const type = document.getElementById("type").value.trim();
     const description = document.getElementById("description").value.trim();
 
-    if (!email || !type || !description) {
+    if (!type || !description) {
         alert("Fill all fields");
         return;
     }
@@ -71,22 +156,66 @@ function submitRequest() {
             "Content-Type": "application/json"
         },
         body: JSON.stringify({
-            email: email,
-            type: type,
-            description: description,
+            email,
+            type,
+            description,
             status: "PENDING"
         })
     })
-    .then(res => res.text())
-    .then(data => {
+    .then(() => {
         alert("Request submitted successfully");
-        console.log(data);
+        loadRequests();
     })
-    .catch(err => {
-        console.error(err);
-        alert("Error submitting request");
+    .catch(() => alert("Error submitting request"));
+}
+
+// ✅ Load ONLY user requests
+function loadRequests() {
+
+    const email = localStorage.getItem("email");
+
+    fetch(`http://localhost:8080/api/requests/user/${email}`)
+    .then(res => res.json())
+    .then(data => {
+
+        const table = document.getElementById("requestTable");
+        table.innerHTML = "";
+
+        if (data.length === 0) {
+            table.innerHTML = "<tr><td colspan='5'>No requests found</td></tr>";
+            return;
+        }
+
+        data.forEach(req => {
+            table.innerHTML += `
+                <tr>
+                    <td>${req.id}</td>
+                    <td>${req.email}</td>
+                    <td>${req.type || "N/A"}</td>
+                    <td>${req.description || "N/A"}</td>
+                    <td>
+                        <span class="${getStatusClass(req.status)}">
+                            ${req.status}
+                        </span>
+                    </td>
+                </tr>
+            `;
+        });
     });
 }
+
+// ✅ Logout
+function logout() {
+    localStorage.removeItem("email");
+    localStorage.removeItem("token");
+    window.location.href = "login.html";
+}
+
+// ✅ Auto-fill email
+document.getElementById("email").value = localStorage.getItem("email");
+
+// Initial load
+loadRequests();
 
 </script>
 
