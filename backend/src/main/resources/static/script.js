@@ -180,6 +180,6 @@ function updateStatus(id, status) {
 // LOGOUT
 // =====================
 function logout() {
-  localStorage.removeItem("token");
-  window.location.href = "login.html";
+    localStorage.clear();
+    window.location.href = "login.html";
 }
