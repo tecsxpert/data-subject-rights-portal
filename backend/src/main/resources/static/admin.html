@@ -155,6 +155,9 @@
 </div>
 
 <script>
+    if (!localStorage.getItem("email")) {
+    window.location.href = "login.html";
+}
 
 let allRequests = [];
 
@@ -215,14 +218,13 @@ function applyFilters() {
 }
 
 function updateStatus(id, status) {
-    fetch(`http://localhost:8080/api/requests/${id}?status=${status}`, {
+    fetch(`http://localhost:8080/api/requests/${id}/${status}`, {
         method: "PUT"
     })
     .then(() => {
-        showToast("Status updated successfully");
-        loadRequests();
-    })
-    .catch(() => alert("Error updating status"));
+        alert("Updated!");
+        location.reload();
+    });
 }
 
 function logout() {

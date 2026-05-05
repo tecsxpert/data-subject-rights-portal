@@ -55,6 +55,9 @@
 </div>
 
 <script>
+    if (!localStorage.getItem("email")) {
+    window.location.href = "login.html";
+}
 
 function submitRequest() {
 
@@ -89,6 +92,17 @@ function submitRequest() {
         alert("Error submitting request");
     });
 }
+function loadUserRequests() {
+    const email = localStorage.getItem("email");
+
+    fetch(`http://localhost:8080/api/requests/user/${email}`)
+        .then(res => res.json())
+        .then(data => {
+            console.log(data);
+        });
+}
+
+window.onload = loadUserRequests;
 
 </script>
 
