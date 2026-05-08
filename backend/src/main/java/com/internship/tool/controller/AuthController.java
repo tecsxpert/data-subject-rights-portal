@@ -1,79 +1,117 @@
 package com.internship.tool.controller;
 
+import com.internship.tool.config.JwtUtil;
+import com.internship.tool.config.UserPrincipal;
 import com.internship.tool.entity.User;
 import com.internship.tool.repository.UserRepository;
-import com.internship.tool.security.JwtUtil;
-
-import org.springframework.beans.factory.annotation.Autowired;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
+import lombok.Data;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.Optional;
-import java.util.HashMap;
 import java.util.Map;
 
 @RestController
-@RequestMapping("/api/auth")
+@RequestMapping("/api/v1/auth")
+@RequiredArgsConstructor
+@Tag(name = "Authentication", description = "Login, register, and token refresh")
 public class AuthController {
 
-    @Autowired
-    private UserRepository repo;
+    private final AuthenticationManager authManager;
+    private final JwtUtil               jwtUtil;
+    private final UserRepository        userRepo;
+    private final PasswordEncoder       encoder;
 
-    @Autowired
-    private JwtUtil jwtUtil;
+    // ── LOGIN ─────────────────────────────────────────────────
 
-    // =========================
-    // REGISTER USER (JSON)
-    // =========================
-    @GetMapping("/register")
-public String quickRegister() {
-    User user = new User();
-    user.setUsername("admin");
-    user.setPassword("admin123");
-    repo.save(user);
-    return "User registered";
-}
+    @PostMapping("/login")
+    @Operation(summary = "Authenticate and receive a JWT token")
+    public ResponseEntity<Map<String, Object>> login(
+            @Valid @RequestBody LoginRequest req) {
+
+        Authentication auth = authManager.authenticate(
+                new UsernamePasswordAuthenticationToken(req.getUsername(), req.getPassword()));
+
+        UserPrincipal principal = (UserPrincipal) auth.getPrincipal();
+        User user = userRepo.findByUsername(principal.getUsername()).orElseThrow();
+        String token = jwtUtil.generate(user);
+
+        return ResponseEntity.ok(Map.of(
+                "token",    token,
+                "username", user.getUsername(),
+                "role",     user.getRole()
+        ));
+    }
+
+    // ── REGISTER ──────────────────────────────────────────────
+
     @PostMapping("/register")
-    public User register(@RequestBody User user) {
-        return repo.save(user);
-    }
+    @Operation(summary = "Register a new USER-role account")
+    public ResponseEntity<Map<String, Object>> register(
+            @Valid @RequestBody RegisterRequest req) {
 
-    // =========================
-    // LOGIN (JSON - Postman / curl)
-    // =========================
-    @PostMapping(value = "/login", consumes = "application/json")
-    public Map<String, String> loginJson(@RequestBody User user) {
-
-        Optional<User> existingUser = repo.findByUsername(user.getUsername());
-
-        if (existingUser.isPresent() &&
-                existingUser.get().getPassword().equals(user.getPassword())) {
-
-            String token = jwtUtil.generateToken(user.getUsername());
-
-            Map<String, String> response = new HashMap<>();
-            response.put("token", token);
-
-            return response;
+        if (userRepo.existsByUsername(req.getUsername())) {
+            return ResponseEntity.badRequest()
+                    .body(Map.of("error", "Username already taken"));
+        }
+        if (userRepo.existsByEmail(req.getEmail())) {
+            return ResponseEntity.badRequest()
+                    .body(Map.of("error", "Email already registered"));
         }
 
-        throw new RuntimeException("Invalid Username or Password");
+        User user = User.builder()
+                .username(req.getUsername())
+                .email(req.getEmail())
+                .password(encoder.encode(req.getPassword()))
+                .role("USER")
+                .active(true)
+                .build();
+        userRepo.save(user);
+
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(Map.of("message", "User registered successfully"));
     }
 
-    // =========================
-    // LOGIN (Browser - EASY MODE)
-    // =========================
-    @GetMapping("/login")
-    public String loginBrowser(@RequestParam String username,
-                              @RequestParam String password) {
+    // ── REFRESH ───────────────────────────────────────────────
 
-        Optional<User> existingUser = repo.findByUsername(username);
+    @PostMapping("/refresh")
+    @Operation(summary = "Issue a fresh token for the authenticated user")
+    public ResponseEntity<Map<String, Object>> refresh(
+            @AuthenticationPrincipal UserDetails principal) {
 
-        if (existingUser.isPresent() &&
-                existingUser.get().getPassword().equals(password)) {
+        User user = userRepo.findByUsername(principal.getUsername()).orElseThrow();
+        return ResponseEntity.ok(Map.of(
+                "token",    jwtUtil.generate(user),
+                "username", user.getUsername(),
+                "role",     user.getRole()
+        ));
+    }
 
-            return jwtUtil.generateToken(username);
-        }
+    // ── Inner request DTOs ────────────────────────────────────
 
-        throw new RuntimeException("Invalid Username or Password");
+    @Data
+    public static class LoginRequest {
+        @NotBlank private String username;
+        @NotBlank private String password;
+    }
+
+    @Data
+    public static class RegisterRequest {
+        @NotBlank @Size(min = 3, max = 50)  private String username;
+        @NotBlank @Email                    private String email;
+        @NotBlank @Size(min = 8, max = 100) private String password;
     }
 }

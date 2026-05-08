@@ -2,10 +2,12 @@ package com.internship.tool;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
-import org.springframework.scheduling.annotation.EnableScheduling; // ✅ ADD THIS
+import org.springframework.data.jpa.repository.config.EnableJpaAuditing;
+import org.springframework.scheduling.annotation.EnableAsync;
 
-@EnableScheduling  // ✅ ADD THIS
 @SpringBootApplication
+@EnableJpaAuditing
+@EnableAsync
 public class ToolApplication {
 
     public static void main(String[] args) {

@@ -1,280 +1,219 @@
+"""
+Tool-48 — DSR Portal  |  AI Microservice  |  Port 5000
+Flask app with Groq LLaMA-3.3-70b integration.
+Falls back to stub responses when Groq is unavailable.
+"""
 import os
-import json
-from datetime import datetime
-from flask import Flask, request, jsonify
-from flask_cors import CORS
-import requests
-from dotenv import load_dotenv
 import time
 import hashlib
-import redis
-from sentence_transformers import SentenceTransformer
-import re
-from markupsafe import escape
+from datetime import datetime, timezone
+from typing import List, Dict, Optional
 
-# Pre-loading the model at startup for faster response times
-print("Pre-loading sentence-transformers model...")
-embedding_model = SentenceTransformer('all-MiniLM-L6-v2') 
-print("Model loaded successfully.")
+from flask import Flask, request, jsonify
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 
-load_dotenv()
+# ── Groq client (optional — graceful degradation) ─────────────
+try:
+    from groq import Groq
+    _groq_client = Groq(api_key=os.getenv("GROQ_API_KEY", ""))
+    GROQ_AVAILABLE = bool(os.getenv("GROQ_API_KEY"))
+except Exception:
+    _groq_client = None
+    GROQ_AVAILABLE = False
 
-cache = redis.Redis(host='localhost', port=6379, db=0, decode_responses=True)
-
-START_TIME = time.time()
-response_times = []
-
+# ── Flask app ─────────────────────────────────────────────────
 app = Flask(__name__)
-CORS(app) # Necessary for the Java/React layers to talk to Flask
+app.config["JSON_SORT_KEYS"] = False
 
-GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+limiter = Limiter(
+    get_remote_address,
+    app=app,
+    default_limits=["30 per minute"],
+    storage_uri="memory://"
+)
+
+_start_time = time.time()
+_request_times: list[float] = []
+
 MODEL = "llama-3.3-70b-versatile"
 
-def sanitize_input(text):
-    # Escape HTML characters to prevent XSS
-    text = escape(text)
-    # Optional: Remove potentially dangerous characters if needed for your model
-    return text
 
-def get_ai_description(user_input):
-    # 1. Loading Prompt Template
-    with open("prompts/describe_rights.txt", "r") as f:
-        template = f.read()
-    
-    full_prompt = template.replace("{user_input}", user_input)
+# ── Helpers ───────────────────────────────────────────────────
 
-    headers = {
-        "Authorization": f"Bearer {GROQ_API_KEY}",
-        "Content-Type": "application/json"
-    }
-    
-    data = {
-        "model": MODEL,
-        "messages": [{"role": "user", "content": full_prompt}],
-        "temperature": 0.3,
-        "response_format": {"type": "json_object"} # Force JSON mode
-    }
+def _sanitise(text: str, max_len: int = 2000) -> str:
+    """Strip dangerous characters and truncate."""
+    if not text:
+        return ""
+    # Reject obvious prompt-injection attempts
+    injection_markers = ["ignore previous", "ignore all", "system:", "###"]
+    lower = text.lower()
+    for marker in injection_markers:
+        if marker in lower:
+            return "[INPUT SANITISED]"
+    return text[:max_len]
 
-    response = requests.post("https://api.groq.com/openai/v1/chat/completions", headers=headers, json=data)
-    response.raise_for_status()
-    
-    # Extracting the JSON string from AI response
-    content = response.json()['choices'][0]['message']['content']
-    return json.loads(content)
 
-def get_ai_recommendations(user_input):
-    with open("prompts/recommendations.txt", "r") as f:
-        template = f.read()
-    
-    full_prompt = template.replace("{user_input}", user_input)
+def call_groq(messages: List[Dict], temperature: float = 0.4) -> Optional[str]:
+    """Call Groq with 3 retries and exponential back-off."""
+    if not GROQ_AVAILABLE or _groq_client is None:
+        return None
 
-    headers = {
-        "Authorization": f"Bearer {GROQ_API_KEY}",
-        "Content-Type": "application/json"
-    }
-    
-    data = {
-        "model": MODEL,
-        "messages": [{"role": "user", "content": full_prompt}],
-        "temperature": 0.5, # Slightly higher for creative suggestions
-        "response_format": {"type": "json_object"}
-    }
+    for attempt in range(3):
+        try:
+            t0 = time.time()
 
-    response = requests.post("https://api.groq.com/openai/v1/chat/completions", headers=headers, json=data)
-    response.raise_for_status()
-    
-    # Extract the array from the JSON response
-    content = json.loads(response.json()['choices'][0]['message']['content'])
-    
-    # Ensure it returns the list part if the AI wraps it in a key like "recommendations"
-    if isinstance(content, dict):
-        for key in content:
-            if isinstance(content[key], list):
-                return content[key]
-    return content
+            resp = _groq_client.chat.completions.create(
+                model=MODEL,
+                messages=messages,
+                temperature=temperature,
+                max_tokens=1024,
+            )
 
-def get_ai_report(user_input):
-    with open("prompts/report_template.txt", "r") as f:
-        template = f.read()
-    
-    full_prompt = template.replace("{user_input}", user_input)
+            _request_times.append(time.time() - t0)
 
-    headers = {
-        "Authorization": f"Bearer {GROQ_API_KEY}",
-        "Content-Type": "application/json"
-    }
-    
-    data = {
-        "model": MODEL,
-        "messages": [{"role": "user", "content": full_prompt}],
-        "temperature": 0.4, # Balanced for structure and detail
-        "response_format": {"type": "json_object"}
-    }
+            if len(_request_times) > 100:
+                _request_times.pop(0)
 
-    response = requests.post("https://api.groq.com/openai/v1/chat/completions", headers=headers, json=data)
-    response.raise_for_status()
-    return json.loads(response.json()['choices'][0]['message']['content'])
+            return resp.choices[0].message.content
 
-@app.route('/describe', methods=['POST'])
-def describe_request():
-    start = time.time()
-    data = request.get_json()
+        except Exception as exc:
+            app.logger.warning(
+                "Groq attempt %d failed: %s",
+                attempt + 1,
+                exc
+            )
 
-    if not request.is_json:
-        return jsonify({"error": "Content-Type must be application/json"}), 415
+            time.sleep(2 ** attempt)
 
-    if len(data['text']) > 5000:
-        return jsonify({"error": "Request body too large"}), 413
+    return None
 
-    # 1. Validate Input
-    if not data or 'text' not in data:
-        response_times.append(time.time() - start)
-        return jsonify({"error": "Missing 'text' field"}), 400
-    
-    # 1. Generate SHA256 Hash of the input text for the cache key
-    text_input = data['text']
-    cache_key = f"describe:{hashlib.sha256(text_input.encode()).hexdigest()}"
-    
-    try:
-        # 2. Check if result is in Redis
-        cached_result = cache.get(cache_key)
-        if cached_result:
-            ai_response = json.loads(cached_result)
-        else:
-            # 3. If not in cache, call AI Logic
-            ai_response = get_ai_description(text_input)
-            ai_response['generated_at'] = datetime.utcnow().isoformat() + "Z"
-            
-            # 4. Store in Redis with 15-minute TTL (900 seconds)
-            cache.setex(cache_key, 900, json.dumps(ai_response))
-        response_times.append(time.time() - start)
-        return jsonify(ai_response), 200
-        
-    except Exception as e:
-        response_times.append(time.time() - start)
-        # Log the real error internally
-        app.logger.error(f"Internal Error: {str(e)}")
-        return jsonify({
-            "action_type": "Manual Review Required",
-            "description": "The AI service is currently unavailable. Please verify this request manually.",
-            "priority": "High",
-            "is_fallback": True, # Required for Day 9
-            "generated_at": datetime.utcnow().isoformat() + "Z"
-        }), 200
-    
-@app.route('/recommend', methods=['POST'])
-def recommend_actions():
-    start = time.time()
-    data = request.get_json()
 
-    if not request.is_json:
-        return jsonify({"error": "Content-Type must be application/json"}), 415
-    
-    if len(data['text']) > 5000:
-        return jsonify({"error": "Request body too large"}), 413
-    
-    if not data or 'text' not in data:
-        response_times.append(time.time() - start)
-        return jsonify({"error": "Missing 'text' field"}), 400
-    
-    text_input = data['text']
-    # Create a specific key for recommendations to avoid collisions with /describe
-    cache_key = f"recommend:{hashlib.sha256(text_input.encode()).hexdigest()}"
+# ── Routes ────────────────────────────────────────────────────
 
-    try:
-        # Check Redis
-        cached_result = cache.get(cache_key)
-        if cached_result:
-            recommendations = json.loads(cached_result)
-        else:
-            # Call AI and cache the result for 15 minutes
-            recommendations = get_ai_recommendations(text_input)
-            cache.setex(cache_key, 900, json.dumps(recommendations))
-        
-        response_times.append(time.time() - start)
-        return jsonify(recommendations[:3]), 200
-        
-    except Exception as e:
-        response_times.append(time.time() - start)
-        # Log the real error internally for your own debugging
-        app.logger.error(f"Internal Error: {str(e)}")
-        # Standard fallback if AI fails - Wrapped in {} inside the []
-        return jsonify([
-            {
-                "action_type": "Manual Review Required", 
-                "description": "The AI service is currently unavailable. Please verify this request manually.", 
-                "priority": "High",
-                "is_fallback": True,
-                "generated_at": datetime.utcnow().isoformat() + "Z"
-            },
-            {"action_type": "Identity Verification", "description": "Verify the identity of the requester manually.", "priority": "High"},
-            {"action_type": "Legal Review", "description": "Consult the legal team regarding this request.", "priority": "Medium"},
-            {"action_type": "Internal Log", "description": "Document this request in the manual audit log.", "priority": "Low"}
-        ]), 200
-
-@app.route('/generate-report', methods=['POST'])
-def generate_report():
-    start = time.time()
-    data = request.get_json()
-
-    if not request.is_json:
-        return jsonify({"error": "Content-Type must be application/json"}), 415
-    
-    if len(data['text']) > 5000:
-        return jsonify({"error": "Request body too large"}), 413
-
-    if not data or 'text' not in data:
-        response_times.append(time.time() - start)
-        return jsonify({"error": "Missing 'text' field"}), 400
-    
-    text_input = data['text']
-    cache_key = f"report:{hashlib.sha256(text_input.encode()).hexdigest()}"
-
-    try:
-        cached_result = cache.get(cache_key)
-        if cached_result:
-            report = json.loads(cached_result)
-        else:
-            report = get_ai_report(text_input)
-            cache.setex(cache_key, 900, json.dumps(report))
-            
-        response_times.append(time.time() - start)
-        return jsonify(report), 200
-    
-    except Exception as e:
-        response_times.append(time.time() - start)
-        # Log the real error internally for your own debugging
-        app.logger.error(f"Internal Error: {str(e)}")
-        return jsonify({
-            "action_type": "Manual Review Required",
-            "description": "The AI service is currently unavailable. Please verify this request manually.",
-            "priority": "High",
-            "is_fallback": True, # Required for Day 9
-            "generated_at": datetime.utcnow().isoformat() + "Z"
-        }), 200
-    
-@app.route('/health', methods=['GET'])
+@app.get("/health")
 def health():
-    avg_time = sum(response_times) / len(response_times) if response_times else 0
-    uptime = time.time() - START_TIME
-    
+    avg_ms = (
+        round(sum(_request_times) / len(_request_times) * 1000, 1)
+        if _request_times else 0
+    )
     return jsonify({
-        "status": "up",
-        "model": MODEL,
-        "avg_response_time_sec": round(avg_time, 3),
-        "uptime_sec": int(uptime),
-        "request_count": len(response_times),
-        "timestamp": datetime.utcnow().isoformat() + "Z"
-    }), 200
+        "status":       "ok",
+        "model":        MODEL if GROQ_AVAILABLE else "stub",
+        "groq_enabled": GROQ_AVAILABLE,
+        "uptime_s":     round(time.time() - _start_time, 1),
+        "avg_response_ms": avg_ms,
+    })
 
-@app.after_request
-def add_security_headers(response):
-    response.headers['X-Content-Type-Options'] = 'nosniff'
-    response.headers['X-Frame-Options'] = 'SAMEORIGIN'
-    response.headers['X-XSS-Protection'] = '1; mode=block'
-    response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
-    response.headers['Content-Security-Policy'] = "default-src 'self'"
-    return response
 
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000)
+@app.post("/describe")
+def describe():
+    data = request.get_json(silent=True) or {}
+    desc = _sanitise(data.get("description", ""))
+    req_type = _sanitise(data.get("request_type", "UNKNOWN"), 50)
+
+    content = call_groq([
+        {"role": "system", "content": (
+            "You are a GDPR/data-protection compliance officer. "
+            "Summarise the data subject request in 2-3 clear sentences. "
+            "Be factual and professional. Return plain text only."
+        )},
+        {"role": "user", "content": (
+            f"Request type: {req_type}\n"
+            f"Description: {desc}\n\n"
+            "Provide a concise professional summary of this request."
+        )},
+    ], temperature=0.3)
+
+    if content:
+        return jsonify({
+            "summary":      content.strip(),
+            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "is_fallback":  False,
+        })
+
+    return jsonify({
+        "summary":      f"[{req_type}] {desc[:120]}..." if len(desc) > 120 else f"[{req_type}] {desc}",
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "is_fallback":  True,
+    })
+
+
+@app.post("/recommend")
+def recommend():
+    data = request.get_json(silent=True) or {}
+    desc = _sanitise(data.get("description", ""))
+    req_type = _sanitise(data.get("request_type", "UNKNOWN"), 50)
+
+    content = call_groq([
+        {"role": "system", "content": (
+            "You are a GDPR compliance expert. "
+            "Return exactly 3 action recommendations as a JSON array. "
+            "Each item: {\"action_type\": string, \"description\": string, \"priority\": \"HIGH\"|\"MEDIUM\"|\"LOW\"}. "
+            "Return ONLY the JSON array, no other text."
+        )},
+        {"role": "user", "content": (
+            f"Request type: {req_type}\nDescription: {desc}\n\n"
+            "Provide 3 prioritised recommendations."
+        )},
+    ], temperature=0.5)
+
+    if content:
+        import json, re
+        try:
+            match = re.search(r'\[.*\]', content, re.DOTALL)
+            if match:
+                return jsonify(json.loads(match.group()))
+        except Exception:
+            pass
+
+    return jsonify([
+        {"action_type": "ACKNOWLEDGE",  "description": f"Acknowledge receipt of the {req_type} request within 72 hours.", "priority": "HIGH"},
+        {"action_type": "VERIFY",       "description": "Verify the identity of the data subject before processing.", "priority": "HIGH"},
+        {"action_type": "PROCESS",      "description": f"Process the {req_type} request within the statutory 30-day window.", "priority": "MEDIUM"},
+    ])
+
+
+@app.post("/generate-report")
+def generate_report():
+    data = request.get_json(silent=True) or {}
+    dsr_id = data.get("dsr_id", "N/A")
+    desc = _sanitise(data.get("description", ""))
+    req_type = _sanitise(data.get("request_type", "UNKNOWN"), 50)
+
+    content = call_groq([
+        {"role": "system", "content": (
+            "You are a data protection compliance officer writing a formal report. "
+            "Return a JSON object with keys: title, summary, overview, key_findings (array of strings), recommendations (array of strings). "
+            "Return ONLY the JSON object."
+        )},
+        {"role": "user", "content": (
+            f"DSR ID: {dsr_id}\nRequest type: {req_type}\nDescription: {desc}\n\n"
+            "Generate a formal compliance report."
+        )},
+    ], temperature=0.4)
+
+    if content:
+        import json, re
+        try:
+            match = re.search(r'\{.*\}', content, re.DOTALL)
+            if match:
+                report = json.loads(match.group())
+                report["is_fallback"] = False
+                return jsonify(report)
+        except Exception:
+            pass
+
+    return jsonify({
+        "title":            f"DSR Report — {req_type} (ID: {dsr_id})",
+        "summary":          f"Formal report for {req_type} request. Manual review required.",
+        "overview":         desc[:300] if desc else "No description provided.",
+        "key_findings":     ["Request received and logged.", "Identity verification required."],
+        "recommendations":  ["Complete within 30-day statutory period.", "Maintain audit trail."],
+        "is_fallback":      True,
+    })
+
+
+# ── Entry point ───────────────────────────────────────────────
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=5000, debug=False)

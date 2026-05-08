@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//c/Program Files/PostgreSQL/18/data/**)",
+      "Bash(net stop:*)",
+      "Bash(net start:*)",
+      "Bash(export PATH=\"$PATH:/c/Program Files/PostgreSQL/18/bin\")",
+      "Bash(psql:*)",
+      "Bash(netstat:*)",
+      "Bash(taskkill:*)",
+      "Bash(cmd //c \"taskkill /PID 14616 /F\")",
+      "Bash(curl:*)"
+    ],
+    "additionalDirectories": [
+      "c:\\Users\\Admin\\OneDrive\\Desktop\\tool48_java_dev2\\tool48\\backend\\src\\test\\java\\com\\internship\\tool",
+      "C:\\Program Files\\PostgreSQL\\18\\data"
+    ]
+  }
+}

@@ -1,0 +1,52 @@
+# ============================================================
+# application-local.yml  — runs WITHOUT Docker / Redis
+# Activate with:  mvn spring-boot:run -Dspring-boot.run.profiles=local
+# ============================================================
+
+spring:
+
+  # ── Database (local PostgreSQL install) ──────────────────────
+  datasource:
+    url:      jdbc:postgresql://localhost:5432/dsr_db
+    username: dsr_user
+    password: dsr_pass
+
+  # ── Use simple in-memory cache instead of Redis ───────────────
+  cache:
+    type: simple        # ConcurrentMapCacheManager — no Redis needed
+
+  # ── Disable Redis auto-configuration entirely ─────────────────
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration
+      - org.springframework.boot.autoconfigure.data.redis.RedisRepositoriesAutoConfiguration
+
+  # ── Mail — disable for local dev (just logs instead of sending) ─
+  mail:
+    host:     smtp.gmail.com
+    port:     587
+    username: ""
+    password: ""
+
+  # ── Show SQL in console while developing ────────────────────────
+  jpa:
+    show-sql: true
+
+# ── Disable mail + show health details locally ───────────────────
+management:
+  health:
+    mail:
+      enabled: false    # no SMTP server locally
+  endpoint:
+    health:
+      show-details: always
+
+# ── JWT secret (local dev only — change for any real deployment) ─
+jwt:
+  secret: local-dev-secret-key-at-least-32-characters-long!
+  expiry-ms: 86400000
+
+# ── AI service (same Flask app running locally) ──────────────────
+ai:
+  service:
+    url: http://localhost:5000

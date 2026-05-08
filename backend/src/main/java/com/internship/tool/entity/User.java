@@ -1,33 +1,50 @@
 package com.internship.tool.entity;
 
 import jakarta.persistence.*;
+import lombok.*;
+import org.springframework.data.annotation.CreatedDate;
+import org.springframework.data.annotation.LastModifiedDate;
+import org.springframework.data.jpa.domain.support.AuditingEntityListener;
+
+import java.time.LocalDateTime;
+import java.util.UUID;
 
 @Entity
-@Table(name = "users") // avoid reserved word issues
+@Table(name = "users")
+@EntityListeners(AuditingEntityListener.class)
+@Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
 public class User {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(unique = true, nullable = false)
+    @Column(nullable = false, updatable = false)
+    @Builder.Default
+    private UUID uuid = UUID.randomUUID();
+
+    @Column(nullable = false, unique = true, length = 100)
     private String username;
 
-    @Column(nullable = false)
+    @Column(nullable = false, unique = true, length = 255)
+    private String email;
+
+    @Column(nullable = false, length = 255)
     private String password;
 
-    private String role;
+    @Column(nullable = false, length = 50)
+    @Builder.Default
+    private String role = "USER";
 
-    // getters & setters
-    public Long getId() { return id; }
-    public void setId(Long id) { this.id = id; }
+    @Column(nullable = false)
+    @Builder.Default
+    private Boolean active = true;
 
-    public String getUsername() { return username; }
-    public void setUsername(String username) { this.username = username; }
+    @CreatedDate
+    @Column(name = "created_at", updatable = false)
+    private LocalDateTime createdAt;
 
-    public String getPassword() { return password; }
-    public void setPassword(String password) { this.password = password; }
-
-    public String getRole() { return role; }
-    public void setRole(String role) { this.role = role; }
+    @LastModifiedDate
+    @Column(name = "updated_at")
+    private LocalDateTime updatedAt;
 }

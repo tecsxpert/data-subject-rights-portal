@@ -1,44 +1,38 @@
-# HELP
-HELP.md
-
-# Maven / Java
-target/
-!**/src/main/**/target/
-!**/src/test/**/target/
-.mvn/wrapper/maven-wrapper.jar
-
-# STS
-.apt_generated
-.classpath
-.factorypath
-.project
-.settings
-.springBeans
-.sts4-cache
-
-# IntelliJ
-.idea
-*.iws
-*.iml
-*.ipr
-
-# NetBeans
-/nbproject/private/
-/nbbuild/
-/dist/
-/nbdist/
-/.nb-gradle/
-build/
-!**/src/main/**/build/
-!**/src/test/**/build/
-
-# VS Code
-.vscode/
-
-# Env & Node
+# NEVER commit these — rotate keys immediately if exposed
 .env
-node_modules/
 
-# Python / others
+# Java
+target/
+*.class
+*.jar
+
+# Node
+node_modules/
+dist/
+.vite/
+
+# Python
 __pycache__/
+*.pyc
+*.pyo
+venv/
+.venv/
+
+# AI / Vector DB
 chroma_data/
+
+# Uploads (use S3/GCS in production)
+uploads/
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
