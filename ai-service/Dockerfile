@@ -1,19 +1,22 @@
-# Use an official Python runtime as a parent image
+# Use a lightweight Python image
 FROM python:3.11-slim
 
-# Set the working directory in the container
+# Set the working directory
 WORKDIR /app
 
-# Copy the requirements file into the container
-COPY requirements.txt .
+# Install system dependencies (needed for some vector DB libraries)
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
 
-# Install dependencies
+# Copy requirements first to leverage Docker cache
+COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy the rest of the application code
 COPY . .
 
-# Expose the port your Flask app runs on
+# Expose the port Flask runs on
 EXPOSE 5000
 
 # Command to run the application

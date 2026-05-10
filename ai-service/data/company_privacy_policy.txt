@@ -1,0 +1,2 @@
+Title: Internal Data Privacy Standard
+Content: Our company is committed to "Privacy by Design." We collect the minimum amount of data required to provide services. Personal data is encrypted at rest using AES-256 and in transit via TLS 1.2+. Employees are granted access on a "least-privilege" basis, and access logs are audited quarterly for compliance.

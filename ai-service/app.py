@@ -11,11 +11,24 @@ import redis
 from sentence_transformers import SentenceTransformer
 import re
 from markupsafe import escape
+import chromadb
+
+chroma_client = chromadb.PersistentClient(path="./chroma_db")
+collection = chroma_client.get_collection(name="dsr_knowledge")
 
 # Pre-loading the model at startup for faster response times
 print("Pre-loading sentence-transformers model...")
 embedding_model = SentenceTransformer('all-MiniLM-L6-v2') 
 print("Model loaded successfully.")
+
+
+try:
+    collection = chroma_client.get_collection(name="dsr_knowledge")
+    print("ChromaDB Collection 'dsr_knowledge' loaded successfully.")
+except Exception as e:
+    print(f"Warning: Could not find collection. Ensure you ran seed_db.py. Error: {e}")
+    collection = None
+
 
 load_dotenv()
 
@@ -33,15 +46,15 @@ MODEL = "llama-3.3-70b-versatile"
 def sanitize_input(text):
     # Escape HTML characters to prevent XSS
     text = escape(text)
-    # Optional: Remove potentially dangerous characters if needed for your model
     return text
 
-def get_ai_description(user_input):
+def get_ai_description(user_input, context=""):
     # 1. Loading Prompt Template
     with open("prompts/describe_rights.txt", "r") as f:
         template = f.read()
     
-    full_prompt = template.replace("{user_input}", user_input)
+
+    full_prompt = template.replace("{user_input}", user_input).replace("{context}", context)
 
     headers = {
         "Authorization": f"Bearer {GROQ_API_KEY}",
@@ -50,9 +63,15 @@ def get_ai_description(user_input):
     
     data = {
         "model": MODEL,
-        "messages": [{"role": "user", "content": full_prompt}],
-        "temperature": 0.3,
-        "response_format": {"type": "json_object"} # Force JSON mode
+        "messages": [
+            {
+                "role": "system", 
+                "content": "You are a Data Privacy Expert. Use the provided domain context to categorize requests according to company policy."
+            },
+            {"role": "user", "content": full_prompt}
+        ],
+        "temperature": 0.2, # Lowered to 0.2 for Day 9 performance/consistency
+        "response_format": {"type": "json_object"} 
     }
 
     response = requests.post("https://api.groq.com/openai/v1/chat/completions", headers=headers, json=data)
@@ -119,46 +138,68 @@ def get_ai_report(user_input):
 def describe_request():
     start = time.time()
     data = request.get_json()
-
+    
+    # APPLY SANITIZATION HERE
+    text_input = sanitize_input(data.get('text', ''))
+    
+    if not text_input:
+        return jsonify({"error": "Missing 'text' field"}), 400    
+    
     if not request.is_json:
         return jsonify({"error": "Content-Type must be application/json"}), 415
-
-    if len(data['text']) > 5000:
-        return jsonify({"error": "Request body too large"}), 413
+        
+    data = request.get_json()
 
     # 1. Validate Input
     if not data or 'text' not in data:
         response_times.append(time.time() - start)
         return jsonify({"error": "Missing 'text' field"}), 400
-    
-    # 1. Generate SHA256 Hash of the input text for the cache key
+
     text_input = data['text']
+    
+    if len(text_input) > 5000:
+        return jsonify({"error": "Request body too large"}), 413
+    
+    # 2. Cache Check (SHA256 Hash)
     cache_key = f"describe:{hashlib.sha256(text_input.encode()).hexdigest()}"
     
     try:
-        # 2. Check if result is in Redis
         cached_result = cache.get(cache_key)
         if cached_result:
             ai_response = json.loads(cached_result)
         else:
-            # 3. If not in cache, call AI Logic
-            ai_response = get_ai_description(text_input)
+            # 3. Retrieve Domain Knowledge from ChromaDB
+            context = ""
+            if collection:
+                try:
+                    results = collection.query(
+                        query_texts=[text_input],
+                        n_results=2 
+                    )
+                    if results['documents']:
+                        context = " ".join(results['documents'][0])
+                except Exception as db_e:
+                    app.logger.error(f"ChromaDB Query Error: {str(db_e)}")
+            
+            # 4. Call AI Logic (Now context is safely handled even if empty)
+            ai_response = get_ai_description(text_input, context)
+
             ai_response['generated_at'] = datetime.utcnow().isoformat() + "Z"
             
-            # 4. Store in Redis with 15-minute TTL (900 seconds)
+            # 5. Store in Redis (15-minute TTL)
             cache.setex(cache_key, 900, json.dumps(ai_response))
+            
         response_times.append(time.time() - start)
         return jsonify(ai_response), 200
         
     except Exception as e:
         response_times.append(time.time() - start)
-        # Log the real error internally
         app.logger.error(f"Internal Error: {str(e)}")
         return jsonify({
             "action_type": "Manual Review Required",
             "description": "The AI service is currently unavailable. Please verify this request manually.",
             "priority": "High",
-            "is_fallback": True, # Required for Day 9
+            "is_fallback": True,
             "generated_at": datetime.utcnow().isoformat() + "Z"
         }), 200
     
@@ -166,7 +207,13 @@ def describe_request():
 def recommend_actions():
     start = time.time()
     data = request.get_json()
-
+    
+    # APPLY SANITIZATION HERE
+    text_input = sanitize_input(data.get('text', ''))
+    
+    if not text_input:
+        return jsonify({"error": "Missing 'text' field"}), 400
+    
     if not request.is_json:
         return jsonify({"error": "Content-Type must be application/json"}), 415
     
@@ -216,6 +263,12 @@ def recommend_actions():
 def generate_report():
     start = time.time()
     data = request.get_json()
+    
+    # APPLY SANITIZATION HERE
+    text_input = sanitize_input(data.get('text', ''))
+    
+    if not text_input:
+        return jsonify({"error": "Missing 'text' field"}), 400
 
     if not request.is_json:
         return jsonify({"error": "Content-Type must be application/json"}), 415

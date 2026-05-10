@@ -1,0 +1,2 @@
+Title: Data Breach Notification Policy
+Content: In the event of a personal data breach, the company is legally obligated to notify the supervisory authority within 72 hours. If the breach is likely to result in a high risk to the rights and freedoms of individuals, the company must also notify the affected data subjects without undue delay.

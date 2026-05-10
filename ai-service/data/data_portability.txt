@@ -1,0 +1,2 @@
+Title: Right to Data Portability
+Content: Data subjects have the right to receive the personal data concerning them, which they have provided to a controller, in a structured, commonly used, and machine-readable format (e.g., JSON or CSV). They also have the right to transmit that data to another controller without hindrance. This only applies to data processed by automated means and based on consent or contract.

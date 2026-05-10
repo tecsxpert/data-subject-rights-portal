@@ -1,0 +1,2 @@
+Title: Right to Erasure (Right to be Forgotten)
+Content: Under GDPR Article 17, data subjects have the right to have their personal data erased without undue delay if the data is no longer necessary for the purposes for which it was collected. This also applies if the subject withdraws consent or objects to processing. Our company policy requires a complete wipe of user identifiers from production databases within 30 days of a verified request.

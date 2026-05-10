@@ -1,0 +1,2 @@
+Title: Right of Access
+Content: Individuals have the right to obtain confirmation from the controller as to whether or not personal data concerning them is being processed. If processing is occurring, they must be provided with a copy of that data in a clear, readable format. Access requests must include details on the purpose of processing, categories of data, and the period for which the data will be stored.

@@ -1,0 +1,2 @@
+Title: Automated Individual Decision-Making and Profiling
+Content: Data subjects have the right not to be subject to a decision based solely on automated processing, including profiling, which produces legal effects. Our company ensures that any AI-driven categorization or credit scoring includes a "human-in-the-loop" review process for high-priority requests.

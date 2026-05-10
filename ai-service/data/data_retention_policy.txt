@@ -1,0 +1,2 @@
+Title: Data Retention and Disposal
+Content: Active account data is retained for the duration of the service contract. Following account termination, data is moved to a transition state for 6 months before being permanently purged, unless a legal hold is in place. Marketing logs are anonymized after 12 months.

@@ -1,0 +1,2 @@
+Title: Right to Restriction of Processing
+Content: Subjects may request that the company limits the way it uses their data. This is often used as an alternative to erasure if the user contests the accuracy of the data or if the processing is unlawful but the user opposes erasure. While restricted, the company can store the data but cannot further process it without consent.
